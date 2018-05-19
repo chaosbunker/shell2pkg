@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+
+if [[ ${#*} != 2 ]]; then
+    echo ""
+    echo "      Usage:"
+    echo "      shell2pkg packageName /path/to/script"
+    exit 1;
+fi
+
+! [[ -f "$2" ]] && echo "Could not find script at given location. Exiting." && exit 1
+
+# find base dir
+BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Name of the package.
+NAME="$1"
+
+# Package version number.
+read -p "Package version: " -ei "1.0" VERSION
+read -p "Identifier: " -ei "com.chaosbunker.${NAME}" IDENTIFIER
+
+! [[ -d "${BASE_DIR}"/userdata ]] && mkdir "${BASE_DIR}"/userdata
+
+# create package dir and copy script
+PACKAGEDIR="${BASE_DIR}"/userdata/"${1}"
+mkdir -p "${PACKAGEDIR}"/scripts
+cp "${2}" "${PACKAGEDIR}"/scripts/postinstall
+
+# Remove any unwanted .DS_Store files.
+find "${PACKAGEDIR}" -name '*.DS_Store' -type f -delete
+
+# Set full read, write, execute permissions for owner and just read and execute permissions for group and other.
+/bin/chmod -R 755 "${PACKAGEDIR}"
+
+# Remove any extended attributes (ACEs).
+/usr/bin/xattr -rc "${PACKAGEDIR}"
+
+! [[ -d "${BASE_DIR}"/userdata/compiled ]] && mkdir "${BASE_DIR}"/userdata/compiled
+
+# Build package.
+/usr/bin/pkgbuild \
+    --root "${PACKAGEDIR}"/ \
+    --scripts "${PACKAGEDIR}"/scripts/ \
+    --identifier "$IDENTIFIER" \
+    --version "$VERSION" \
+    "${BASE_DIR}"/userdata/compiled/"$NAME"-"$VERSION".pkg
